@@ -1,0 +1,44 @@
+{
+  "event": "S-1202",
+  "title": "Remuneração de Trabalhador - RPPS",
+  "version": "S-1.3",
+  "sections": [
+    {
+      "name": "Identificação do Trabalhador",
+      "fields": [
+        {"tag": "cpfTrab", "label": "CPF do Trabalhador", "req": "M", "type": "cpf", "tip": "CPF do servidor público."},
+        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Mês/Ano de apuração da folha RPPS."}
+      ]
+    },
+    {
+      "name": "Dados do Contrato",
+      "fields": [
+        {"tag": "matricula", "label": "Matrícula", "req": "M", "type": "string", "tip": "Matrícula do servidor no órgão público."},
+        {"tag": "codLotacao", "label": "Cód. Lotação", "req": "M", "type": "string", "default": "1", "tip": "Código da lotação tributária."},
+        {"tag": "codCateg", "label": "Categoria", "req": "M", "type": "string", "default": "301", "tip": "Categoria do servidor (Ex: 301 - Estatutário)."}
+      ]
+    }
+  ],
+  "xml_structure": {
+    "root": "evtRmnRPPS",
+    "sequence": [
+      "ideEvento",
+      "ideEmpregador",
+      "ideTrabalhador",
+      "dmDev"
+    ],
+    "groups": {
+      "ideTrabalhador": ["cpfTrab"],
+      "dmDev": ["ideDmDev", "codCateg", "infoPerApur"],
+      "infoPerApur": ["ideEstab"],
+      "ideEstab": ["tpInsc", "nrInsc", "remunPerApur"],
+      "remunPerApur": ["matricula", "itensRemun"],
+      "itensRemun": ["codRubr", "ideTabRubr", "vrRubr", "indApurIR"]
+    },
+    "mappings": {
+      "dmDev": "demonstrativos",
+      "itensRemun": "rubrics",
+      "indApurIR": "indApurIR"
+    }
+  }
+}

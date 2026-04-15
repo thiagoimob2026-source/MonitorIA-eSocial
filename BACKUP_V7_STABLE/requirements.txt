@@ -1,0 +1,7 @@
+customtkinter
+python-dotenv
+pillow
+packaging
+lxml
+cryptography
+pyinstaller

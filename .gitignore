@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env
+
+# Build and Packaging
+build/
+dist/
+*.spec
+Setup_IA_eSocial.exe
+
+# Database and Secrets
+*.db
+config.json
+temp_event.ini
+last_soap_request.xml
+
+# IDEs
+.idea/
+.vscode/
+
+# Media and Temp
+*.pdf
+*.jpg
+*.png
+debug_xmls/
+scratch/
+test_new_report.py
+debug_csv.py

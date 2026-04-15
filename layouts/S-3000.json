@@ -1,0 +1,28 @@
+{
+  "event": "S-3000",
+  "title": "Exclusão de Eventos",
+  "version": "S-1.3",
+  "sections": [
+    {
+      "name": "Identificação do Evento a Excluir",
+      "fields": [
+        {"tag": "tpEvento", "label": "Tipo do Evento", "req": "M", "type": "options", "values": ["S-1200", "S-1202", "S-1207", "S-1210"], "default": "S-1200", "tip": "Tipo do evento que deseja excluir do portal."},
+        {"tag": "nrRecEvt", "label": "Número do Recibo", "req": "M", "type": "string", "placeholder": "Recibo oficial do eSocial", "tip": "Número do recibo de entrega do evento a ser excluído."},
+        {"tag": "cpfTrab", "label": "CPF do Trabalhador", "req": "M", "type": "cpf", "tip": "Preencher apenas para eventos vinculados a trabalhador."},
+        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Competência do evento que está sendo excluído."}
+      ]
+    }
+  ],
+  "xml_structure": {
+    "root": "evtExclusao",
+    "sequence": [
+      "ideEvento",
+      "ideEmpregador",
+      "infoExclusao"
+    ],
+    "groups": {
+      "infoExclusao": ["tpEvento", "nrRecEvt", "ideTrabalhador"],
+      "ideTrabalhador": ["cpfTrab"]
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "event": "S-1210",
+  "title": "Pagamentos de Rendimentos do Trabalho",
+  "version": "S-1.3",
+  "sections": [
+    {
+      "name": "Identificação do Trabalhador",
+      "fields": [
+        {"tag": "cpfTrab", "label": "CPF do Trabalhador", "req": "M", "type": "cpf", "tip": "CPF do beneficiário do pagamento."},
+        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Mês/Ano em que ocorreu o pagamento."}
+      ]
+    },
+    {
+      "name": "Dados do Pagamento",
+      "fields": [
+        {"tag": "dtPagto", "label": "Data do Pagamento", "req": "M", "type": "date", "default": "2026-02-28", "tip": "Data real em que o valor foi pago."},
+        {"tag": "tpPgto", "label": "Tipo de Pagamento", "req": "M", "type": "options", "values": ["1 - Ajuste", "2 - Folha", "3 - Rescisão"], "default": "2 - Folha"},
+        {"tag": "perRef", "label": "Competência Ref.", "req": "M", "type": "period", "tip": "Mês/Ano ao qual a remuneração se refere."}
+      ]
+    }
+  ],
+  "xml_structure": {
+    "root": "evtPgtos",
+    "sequence": [
+      "ideEvento",
+      "ideEmpregador",
+      "ideBenef",
+      "infoPgto"
+    ],
+    "groups": {
+      "ideBenef": ["cpfTrab"],
+      "infoPgto": ["dtPagto", "tpPgto", "perRef", "ideDmDev"],
+      "ideDmDev": ["ideDmDev", "detPgtoFl"],
+      "detPgtoFl": ["vrLiq"]
+    }
+  }
+}
