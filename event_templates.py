@@ -27,7 +27,10 @@ def generate_event_xml(evt_type: str, data: dict) -> str:
     """
     # Priority 1: Hardcoded generators (XSD-validated for very high complexity or special consolidation)
     _hardcoded = {
-        "S-1210": generate_s1210_xml, # Keep S-1210 as hardcoded due to complex payment consolidation
+        "S-1200": generate_s1200_xml,
+        "S-1202": generate_s1202_xml,
+        "S-1207": generate_s1207_xml,
+        "S-1210": generate_s1210_xml, 
         "S-1000": generate_s1000_xml,
     }
     generator = _hardcoded.get(evt_type)
@@ -153,7 +156,7 @@ def generate_xml_from_metadata(layout, data):
         if data.get('nrRecEvt') and str(data.get('indRetif')) == '2':
             etree.SubElement(ide_evt, "{%s}nrRecEvt" % ns).text = data.get('nrRecEvt')
     
-    if data.get('indApuracao'):
+    if data.get('indApuracao') and evt_type != "S-3000":
         etree.SubElement(ide_evt, "{%s}indApuracao" % ns).text = str(data.get('indApuracao'))
     elif evt_type in ["S-1200", "S-1202", "S-1207"]:
         etree.SubElement(ide_evt, "{%s}indApuracao" % ns).text = "1" # Default Mensal
@@ -224,9 +227,10 @@ def generate_s1200_xml(data):
     matricula = str(data.get('matricula', '') or '').strip()
     cod_categ = str(data.get('codCateg', '701') or '701').strip()
     is_autonomous = cod_categ.startswith('7') or cod_categ in ['701', '711', '712', '721', '722', '731', '734', '761']
-    needs_infocomplem = (not matricula) and is_autonomous and data.get('nmTrab') and data.get('dtNascto')
+    # Trigger even if nmTrab is missing to satisfy the portal's "must be filled" requirement for the group
+    needs_infocomplem = (not matricula) and is_autonomous 
     
-    if needs_infocomplem:
+    if needs_infocomplem and (data.get('nmTrab') or data.get('dtNascto')):
         ic = etree.SubElement(ide_trab, "{%s}infoComplem" % ns)
         etree.SubElement(ic, "{%s}nmTrab" % ns).text = data.get('nmTrab')
         dnt = re.sub(r'\D', '', str(data.get('dtNascto', '')))
@@ -250,9 +254,9 @@ def generate_s1200_xml(data):
         
         # [infoComplCont] - Deve vir APÓS infoPerApur no S-1.3
         # Só incluir quando infoComplem foi enviado (mesmo critério: autônomo sem matrícula)
-        if needs_infocomplem and data.get('codCBO'):
+        if needs_infocomplem:
             icc = etree.SubElement(dm_dev, "{%s}infoComplCont" % ns)
-            etree.SubElement(icc, "{%s}codCBO" % ns).text = str(data.get('codCBO', '214120'))
+            etree.SubElement(icc, "{%s}codCBO" % ns).text = str(data.get('codCBO', '214120') or '214120')
 
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode('utf-8')
 
@@ -278,23 +282,50 @@ def generate_s1202_xml(data):
     etree.SubElement(ide_emp, "{%s}nrInsc" % ns).text = re.sub(r'\D', '', str(data.get('nrInsc', '')))[:8]
     ide_trab = etree.SubElement(evt, "{%s}ideTrabalhador" % ns)
     etree.SubElement(ide_trab, "{%s}cpfTrab" % ns).text = re.sub(r'\D', '', str(data.get('cpfTrab', ''))).zfill(11)
+
+    # [infoComplem] - S-1.3: Required if 'matricula' is empty (typically for Category 7xx/autonomous linked to RPPS)
+    matricula = str(data.get('matricula', '') or '').strip()
+    cod_categ = str(data.get('codCateg', '301') or '301').strip()
+    is_autonomous = cod_categ.startswith('7') 
+    needs_infocomplem = (not matricula) and is_autonomous 
+
+    if needs_infocomplem and (data.get('nmTrab') or data.get('dtNascto')):
+        ic = etree.SubElement(ide_trab, "{%s}infoComplem" % ns)
+        etree.SubElement(ic, "{%s}nmTrab" % ns).text = data.get('nmTrab')
+        dnt = re.sub(r'\D', '', str(data.get('dtNascto', '')))
+        if len(dnt) == 8:
+            etree.SubElement(ic, "{%s}dtNascto" % ns).text = f"{dnt[4:]}-{dnt[2:4]}-{dnt[:2]}"
+        else:
+            etree.SubElement(ic, "{%s}dtNascto" % ns).text = data.get('dtNascto')
+
     for dm in data.get('demonstrativos', []):
         dm_dev = etree.SubElement(evt, "{%s}dmDev" % ns)
         etree.SubElement(dm_dev, "{%s}ideDmDev" % ns).text = dm.get('ideDmDev', '001')
-        etree.SubElement(dm_dev, "{%s}codCateg" % ns).text = str(data.get('codCateg', '301'))
-        # S-1202 XSD: infoPerApur > ideEstab > remunPerApur
-        info_per = etree.SubElement(dm_dev, "{%s}infoPerApur" % ns)
-        ide_est = etree.SubElement(info_per, "{%s}ideEstab" % ns)
-        etree.SubElement(ide_est, "{%s}tpInsc" % ns).text = data.get('tpInscEstab', '1')
-        etree.SubElement(ide_est, "{%s}nrInsc" % ns).text = re.sub(r'\D', '', str(data.get('nrInscEstab', ''))).zfill(14)
-        etree.SubElement(ide_est, "{%s}codLotacao" % ns).text = data.get('codLotacao', '1')
-        remun = etree.SubElement(ide_est, "{%s}remunPerApur" % ns)
-        etree.SubElement(remun, "{%s}matricula" % ns).text = data.get('matricula', '')
+        etree.SubElement(dm_dev, "{%s}codCateg" % ns).text = cod_categ
+
+        # S-1202 XSD S-1.3: infoPerApur > ideEstab > remunPerApur
+        info_apur = etree.SubElement(dm_dev, "{%s}infoPerApur" % ns)
+        ide_estab = etree.SubElement(info_apur, "{%s}ideEstab" % ns)
+        etree.SubElement(ide_estab, "{%s}tpInsc" % ns).text = data.get('tpInscEstab', data.get('tpInsc', '1'))
+        etree.SubElement(ide_estab, "{%s}nrInsc" % ns).text = data.get('nrInscEstab', data.get('nrInsc', ''))
+        remun = etree.SubElement(ide_estab, "{%s}remunPerApur" % ns)
+        
+        if matricula:
+            etree.SubElement(remun, "{%s}matricula" % ns).text = matricula
+
         for r in dm.get('rubrics', []):
             item = etree.SubElement(remun, "{%s}itensRemun" % ns)
             etree.SubElement(item, "{%s}codRubr" % ns).text = r.get('codRubr', '')
             etree.SubElement(item, "{%s}ideTabRubr" % ns).text = r.get('ideTabRubr', 'contindi')
             etree.SubElement(item, "{%s}vrRubr" % ns).text = "{:.2f}".format(float(r.get('vrRubr', 0)))
+            # [indApurIR] - Field was missing in previous version, mandatory in S-1.3
+            etree.SubElement(item, "{%s}indApurIR" % ns).text = str(r.get('indApurIR', '0'))
+
+        # [infoComplCont] - S-1.3: Required if infoComplem was sent
+        if needs_infocomplem:
+            icc = etree.SubElement(dm_dev, "{%s}infoComplCont" % ns)
+            etree.SubElement(icc, "{%s}codCBO" % ns).text = str(data.get('codCBO', '214120') or '214120')
+
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode('utf-8')
 
 def generate_s1207_xml(data):
@@ -313,17 +344,19 @@ def generate_s1207_xml(data):
         etree.SubElement(dm_dev, "{%s}ideDmDev" % ns).text = dm.get('ideDmDev', '001')
         # S-1207 XSD evtBenPrRP: dmDev > nrBeneficio > infoPerApur > ideEstab > detComponentes
         etree.SubElement(dm_dev, "{%s}nrBeneficio" % ns).text = data.get('matricula', '')
+        # S-1207 XSD S-1.3: infoPerApur > ideEstab > itensRemun
         info_per = etree.SubElement(dm_dev, "{%s}infoPerApur" % ns)
         ide_est = etree.SubElement(info_per, "{%s}ideEstab" % ns)
         etree.SubElement(ide_est, "{%s}tpInsc" % ns).text = data.get('tpInscEstab', '1')
         etree.SubElement(ide_est, "{%s}nrInsc" % ns).text = re.sub(r'\D', '', str(data.get('nrInscEstab', ''))).zfill(14)
-        etree.SubElement(ide_est, "{%s}codLotacao" % ns).text = data.get('codLotacao', '1')
-        det = etree.SubElement(ide_est, "{%s}detComponentes" % ns)
+        
         for r in dm.get('rubrics', []):
-            item = etree.SubElement(det, "{%s}itensRemun" % ns)
+            item = etree.SubElement(ide_est, "{%s}itensRemun" % ns)
             etree.SubElement(item, "{%s}codRubr" % ns).text = r.get('codRubr', '')
             etree.SubElement(item, "{%s}ideTabRubr" % ns).text = r.get('ideTabRubr', 'contindi')
             etree.SubElement(item, "{%s}vrRubr" % ns).text = "{:.2f}".format(float(r.get('vrRubr', 0)))
+            # [indApurIR] - Mandatory in S-1.3
+            etree.SubElement(item, "{%s}indApurIR" % ns).text = str(r.get('indApurIR', '0'))
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode('utf-8')
 
 def generate_s1210_xml(data):
@@ -476,8 +509,17 @@ def generate_s3000_xml(data):
     info_excl = etree.SubElement(evt, "{%s}infoExclusao" % ns)
     etree.SubElement(info_excl, "{%s}tpEvento" % ns).text = data.get('tpEvento', 'S-1200')
     etree.SubElement(info_excl, "{%s}nrRecEvt" % ns).text = data.get('nrRecEvt', '')
+    
     ide_trab = etree.SubElement(info_excl, "{%s}ideTrabalhador" % ns)
     etree.SubElement(ide_trab, "{%s}cpfTrab" % ns).text = re.sub(r'\D', '', str(data.get('cpfTrab', ''))).zfill(11)
+
+    # [ideFolhaPagto] - Mandatory ONLY for S-1200, S-1202, S-1207, S-1280, S-1300
+    # Prohibited for S-1210
+    if str(data.get('tpEvento', '')) in ['S-1200', 'S-1202', 'S-1207', 'S-1280', 'S-1300']:
+        ide_folha = etree.SubElement(info_excl, "{%s}ideFolhaPagto" % ns)
+        etree.SubElement(ide_folha, "{%s}indApuracao" % ns).text = str(data.get('indApuracao', '1'))
+        etree.SubElement(ide_folha, "{%s}perApur" % ns).text = str(data.get('perApur', ''))
+
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode('utf-8')
 
 def generate_s1000_xml(data):

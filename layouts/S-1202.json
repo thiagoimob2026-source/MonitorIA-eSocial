@@ -7,15 +7,18 @@
       "name": "Identificação do Trabalhador",
       "fields": [
         {"tag": "cpfTrab", "label": "CPF do Trabalhador", "req": "M", "type": "cpf", "tip": "CPF do servidor público."},
-        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Mês/Ano de apuração da folha RPPS."}
+        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Mês/Ano de apuração da folha RPPS."},
+        {"tag": "nmTrab", "label": "Nome Completo", "req": "O", "type": "string", "tip": "Opcional se já cadastrado no eSocial."},
+        {"tag": "dtNascto", "label": "Data Nascimento", "req": "O", "type": "date", "tip": "Obrigatório se não houver matrícula."}
       ]
     },
     {
       "name": "Dados do Contrato",
       "fields": [
-        {"tag": "matricula", "label": "Matrícula", "req": "M", "type": "string", "tip": "Matrícula do servidor no órgão público."},
+        {"tag": "matricula", "label": "Matrícula", "req": "O", "type": "string", "tip": "Matrícula no órgão (vazio para autônomos sem vínculo)."},
         {"tag": "codLotacao", "label": "Cód. Lotação", "req": "M", "type": "string", "default": "1", "tip": "Código da lotação tributária."},
-        {"tag": "codCateg", "label": "Categoria", "req": "M", "type": "string", "default": "301", "tip": "Categoria do servidor (Ex: 301 - Estatutário)."}
+        {"tag": "codCateg", "label": "Categoria", "req": "M", "type": "string", "default": "301", "tip": "Categoria (Ex: 301 - Estatutário, 701 - Autônomo)."},
+        {"tag": "codCBO", "label": "CBO", "req": "O", "type": "string", "default": "214120", "tip": "Obrigatório para autônomos sem vínculo."}
       ]
     }
   ],
@@ -28,17 +31,29 @@
       "dmDev"
     ],
     "groups": {
-      "ideTrabalhador": ["cpfTrab"],
-      "dmDev": ["ideDmDev", "codCateg", "infoPerApur"],
+      "ideTrabalhador": ["cpfTrab", "infoComplem"],
+      "infoComplem": ["nmTrab", "dtNascto"],
+      "dmDev": ["ideDmDev", "codCateg", "infoPerApur", "infoComplCont"],
       "infoPerApur": ["ideEstab"],
       "ideEstab": ["tpInsc", "nrInsc", "remunPerApur"],
       "remunPerApur": ["matricula", "itensRemun"],
+      "infoComplCont": ["codCBO"],
       "itensRemun": ["codRubr", "ideTabRubr", "vrRubr", "indApurIR"]
     },
     "mappings": {
       "dmDev": "demonstrativos",
       "itensRemun": "rubrics",
       "indApurIR": "indApurIR"
+    },
+    "conditions": {
+      "infoComplem": {
+        "if_empty": ["matricula"],
+        "if_not_empty": ["nmTrab", "dtNascto"]
+      },
+      "infoComplCont": {
+        "if_empty": ["matricula"],
+        "if_not_empty": ["codCBO"]
+      }
     }
   }
 }

@@ -1442,6 +1442,8 @@ class ESocialApp(ctk.CTk):
             'tpAmb': self.config_data.get("tpAmb", "1"),
             'indRetif': self.s1200_ind_retif.get()[0],
             'nrRecEvt': self.s1200_nr_rec.get().strip(),
+            'tpInscEstab': self.config_data.get("tpInsc", "1"),
+            'nrInscEstab': self.config_data.get("nrInsc", ""),
             'demonstrativos': self.s1200_dm_manager.get_data()
         })
         self._save_event_validated("S-1200", data)
@@ -1583,6 +1585,8 @@ class ESocialApp(ctk.CTk):
             'tpAmb': self.config_data.get("tpAmb", "1"),
             'indRetif': self.s1202_ind_retif.get()[0],
             'nrRecEvt': self.s1202_nr_rec.get().strip(),
+            'tpInscEstab': self.config_data.get("tpInsc", "1"),
+            'nrInscEstab': self.config_data.get("nrInsc", ""),
             'demonstrativos': self.s1202_dm_manager.get_data()
         })
         self._save_event_validated("S-1202", data)
@@ -1595,6 +1599,8 @@ class ESocialApp(ctk.CTk):
             'tpAmb': self.config_data.get("tpAmb", "1"),
             'indRetif': self.s1207_ind_retif.get()[0],
             'nrRecEvt': self.s1207_nr_rec.get().strip(),
+            'tpInscEstab': self.config_data.get("tpInsc", "1"),
+            'nrInscEstab': self.config_data.get("nrInsc", ""),
             'demonstrativos': self.s1207_dm_manager.get_data()
         })
         self._save_event_validated("S-1207", data)
@@ -1693,7 +1699,8 @@ class ESocialApp(ctk.CTk):
                 "idedmdev": ["identificador", "demonstrativo", "ide_dm_dev", "idedm"],
                 "dtnascto": ["nascimento", "data nascimento", "nascimento_ddmmyyyy"],
                 "codlotacao": ["lotacao", "cod_lotacao", "lotação"],
-                "matricula": ["matricula", "matrícula", "nº beneficio", "nrbeneficio"]
+                "matricula": ["matricula", "matrícula", "nº beneficio", "nrbeneficio"],
+                "indapurir": ["indicativo ir", "indicativo_apuracao_ir", "ind_ir", "apur_ir"]
             }
             target_low = target_tag.lower()
             if target_low in row_lower: return row_lower[target_low]
@@ -2371,41 +2378,30 @@ class ESocialApp(ctk.CTk):
             messagebox.showerror("Erro", f"Falha técnica no envio: {e}")
 
     def process_s3000(self):
-        tp_evento = self.s3000_entries["tpEvento"].get().strip()
-        nr_rec = self.s3000_entries["nrRecEvt"].get().strip()
-        cpf = self.s3000_entries["cpfTrab"].get().replace(".", "").replace("-", "")
-        per_apur = self.s3000_entries["perApur"].get().strip()
-        
-        if not nr_rec:
+        # 1. Collect all fields from UI entries automatically (Dynamic approach)
+        data = {}
+        for tag, widget in self.s3000_entries.items():
+            val = widget.get().strip()
+            # Special case for option menus with labels (e.g. "1 - Mensal" -> "1")
+            if " - " in val:
+                val = val.split(" - ")[0]
+            data[tag] = val
+
+        if not data.get("nrRecEvt"):
             self.log("ERRO: O Número do Recibo é obrigatório para o S-3000.")
             return
             
-        data = {
+        # 2. Add technical/config fields
+        data.update({
             'tpAmb': self.config_data.get("tpAmb", "1"),
             'tpInsc': "1",
             'nrInsc': self.config_data.get("nrInsc", ""),
-            'tpEvento': tp_evento,
-            'nrRecEvt': nr_rec,
-            'cpfTrab': cpf,
-            'perApur': per_apur
-        }
+        })
         
         self.log("Gerando XML para S-3000 (Exclusão)...")
-        xml_content = generate_s3000_xml(data)
-        
-        try:
-            from lxml import etree
-            xml_tree = etree.fromstring(xml_content.encode('utf-8'))
-            evt_id = xml_tree[0].get("Id") if xml_tree[0].get("Id") else ("EXT_S3000_"+data['cpfTrab'])
-            
-            self.db.save_event(None, evt_id, "S-3000", data['cpfTrab'], xml_content)
-            self.save_xml_auto(xml_content, "S-3000", data['cpfTrab'])
-            self.log(f"SUCESSO: Exclusão {evt_id} Salva como PENDENTE.")
+        # Central helper handles generation, XSD validation and DB saving
+        if self._save_event_validated("S-3000", data):
             self.tabview.set("Histórico")
-            self.refresh_history()
-            
-        except Exception as e:
-            self.log(f"Erro ao salvar exclusão: {e}")
 
     def trigger_auto_consult(self, protocol):
         """Schedules an automatic consultation after 10 seconds."""
@@ -2551,9 +2547,10 @@ class ESocialApp(ctk.CTk):
         if not event_data: return
 
         # Determinar grupo S-1.3
-        if event_data["type"] in ["S-1000", "S-1005", "S-1010", "S-1020", "S-1070"]:
+        etype = event_data["type"]
+        if etype.startswith("S-10"):
             grupo = "1"
-        elif event_data["type"] in ["S-1200", "S-1210", "S-1299"]:
+        elif etype.startswith("S-12") or etype.startswith("S-13"):
             grupo = "3"
         else:
             grupo = "2"
@@ -2571,9 +2568,10 @@ class ESocialApp(ctk.CTk):
         to_send = [h["evt_id"] for h in pending]
         first_type = pending[0]["type"]
         
-        if first_type in ["S-1000", "S-1005", "S-1010", "S-1020", "S-1070"]:
+        # Determinar grupo S-1.3 (Baseado no primeiro evento do lote)
+        if first_type.startswith("S-10"):
             grupo = "1"
-        elif first_type in ["S-1200", "S-1210", "S-1299"]:
+        elif first_type.startswith("S-12") or first_type.startswith("S-13"):
             grupo = "3"
         else:
             grupo = "2"

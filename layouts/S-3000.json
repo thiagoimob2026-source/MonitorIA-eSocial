@@ -9,7 +9,8 @@
         {"tag": "tpEvento", "label": "Tipo do Evento", "req": "M", "type": "options", "values": ["S-1200", "S-1202", "S-1207", "S-1210"], "default": "S-1200", "tip": "Tipo do evento que deseja excluir do portal."},
         {"tag": "nrRecEvt", "label": "Número do Recibo", "req": "M", "type": "string", "placeholder": "Recibo oficial do eSocial", "tip": "Número do recibo de entrega do evento a ser excluído."},
         {"tag": "cpfTrab", "label": "CPF do Trabalhador", "req": "M", "type": "cpf", "tip": "Preencher apenas para eventos vinculados a trabalhador."},
-        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Competência do evento que está sendo excluído."}
+        {"tag": "perApur", "label": "Período (AAAA-MM)", "req": "M", "type": "period", "default": "2026-02", "tip": "Competência do evento que está sendo excluído."},
+        {"tag": "indApuracao", "label": "Tipo de Apuração", "req": "M", "type": "options", "values": ["1 - Mensal", "2 - Anual (13º)"], "default": "1 - Mensal", "tip": "Indicativo do período de apuração."}
       ]
     }
   ],
@@ -21,8 +22,19 @@
       "infoExclusao"
     ],
     "groups": {
-      "infoExclusao": ["tpEvento", "nrRecEvt", "ideTrabalhador"],
-      "ideTrabalhador": ["cpfTrab"]
+      "infoExclusao": ["tpEvento", "nrRecEvt", "ideTrabalhador", "ideFolhaPagto"],
+      "ideTrabalhador": ["cpfTrab"],
+      "ideFolhaPagto": ["indApuracao", "perApur"]
+    },
+    "conditions": {
+      "ideTrabalhador": {
+        "if_not_empty": ["cpfTrab"]
+      },
+      "ideFolhaPagto": {
+        "if_startswith": {
+          "tpEvento": ["S-12", "S-13"]
+        }
+      }
     }
   }
 }
