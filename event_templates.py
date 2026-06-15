@@ -370,10 +370,24 @@ def generate_s1210_xml(data):
     ide_benef = etree.SubElement(evt, "{%s}ideBenef" % ns); etree.SubElement(ide_benef, "{%s}cpfBenef" % ns).text = re.sub(r'\D', '', str(data.get('cpfTrab', ''))).zfill(11)
     consolidated_pgtos = {}
     for pgto in data.get('pagamentos', []):
-        dt_clean = re.sub(r'\D', '', str(pgto.get('dtPgto', ''))); dt_fmt = f"{dt_clean[4:]}-{dt_clean[2:4]}-{dt_clean[:2]}" if len(dt_clean) == 8 else pgto.get('dtPgto', '')
+        dt_val = str(pgto.get('dtPgto', '')).strip()
+        # If it is already YYYY-MM-DD, keep it. Otherwise format it.
+        if len(dt_val) == 10 and dt_val.count('-') == 2:
+            dt_fmt = dt_val
+        else:
+            dt_clean = re.sub(r'\D', '', dt_val)
+            dt_fmt = f"{dt_clean[4:]}-{dt_clean[2:4]}-{dt_clean[:2]}" if len(dt_clean) == 8 else dt_val
+        
         key = (dt_fmt, pgto.get('tpPgto', '1'), pgto.get('perRef', '').strip())
         if key not in consolidated_pgtos: consolidated_pgtos[key] = {'dtPgto': dt_fmt, 'tpPgto': key[1], 'perRef': key[2], 'ideDmDevs': set(), 'vrLiq': 0.0}
-        for dm in pgto.get('demonstrativos', []): consolidated_pgtos[key]['ideDmDevs'].add(dm.get('ideDmDev', '001'))
+        
+        # main.py sends a list of strings in 'ideDmDevs'
+        if 'ideDmDevs' in pgto:
+            for dm in pgto['ideDmDevs']:
+                consolidated_pgtos[key]['ideDmDevs'].add(str(dm).strip())
+        # Fallback for UI which sends 'demonstrativos'
+        for dm in pgto.get('demonstrativos', []): consolidated_pgtos[key]['ideDmDevs'].add(str(dm.get('ideDmDev', '001')).strip())
+        
         try: consolidated_pgtos[key]['vrLiq'] += float(pgto.get('vrLiq') or 0)
         except: pass
     for key in sorted(consolidated_pgtos.keys()):
@@ -385,16 +399,14 @@ def generate_s1210_xml(data):
     for pgto in data.get('pagamentos', []):
         cr = pgto.get('cr', '').strip()
         if not cr: continue
-        if cr not in consolidated_ir: consolidated_ir[cr] = {'cr': cr, 'vrIRRF': 0.0, 'cpfDep': pgto.get('cpfDep', '').strip(), 'vlrDedDep': 0.0}
-        try: consolidated_ir[cr]['vrIRRF'] += float(pgto.get('vrIRRF') or 0)
-        except: pass
+        cr = cr.zfill(6)
+        if cr not in consolidated_ir: consolidated_ir[cr] = {'cr': cr, 'cpfDep': pgto.get('cpfDep', '').strip(), 'vlrDedDep': 0.0}
         try: consolidated_ir[cr]['vlrDedDep'] += float(pgto.get('vlrDedDep') or 0)
         except: pass
     if consolidated_ir:
         info_ir = etree.SubElement(ide_benef, "{%s}infoIRComplem" % ns)
         for cr in sorted(consolidated_ir.keys()):
             ir = consolidated_ir[cr]; info_cr = etree.SubElement(info_ir, "{%s}infoIRCR" % ns); etree.SubElement(info_cr, "{%s}tpCR" % ns).text = ir['cr']
-            if ir['vrIRRF'] > 0: etree.SubElement(info_cr, "{%s}vrIRRF" % ns).text = "{:.2f}".format(ir['vrIRRF'])
             if ir['cpfDep'] and ir['vlrDedDep'] > 0:
                 ded = etree.SubElement(info_cr, "{%s}dedDepen" % ns); etree.SubElement(ded, "{%s}tpRend" % ns).text = "11"; etree.SubElement(ded, "{%s}cpfDep" % ns).text = re.sub(r'\D', '', ir['cpfDep']).zfill(11); etree.SubElement(ded, "{%s}vlrDedDep" % ns).text = "{:.2f}".format(ir['vlrDedDep'])
     return etree.tostring(root, encoding="utf-8", pretty_print=True).decode('utf-8')

@@ -247,26 +247,26 @@ class InfoPgtoItem(ctk.CTkFrame):
         row1 = ctk.CTkFrame(self, fg_color="transparent")
         row1.pack(fill="x", padx=5, pady=5)
         
-        ctk.CTkLabel(row1, text="Data Pgto:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(5,2))
-        self.dtPgto = ctk.CTkEntry(row1, width=85, placeholder_text="DDMMAAAA")
+        ctk.CTkLabel(row1, text="Data Pgto(DDMMAAAA):", font=ctk.CTkFont(size=11)).pack(side="left", padx=(5,2))
+        self.dtPgto = ctk.CTkEntry(row1, width=85, placeholder_text="05032026")
         self.dtPgto.pack(side="left", padx=2)
         
-        ctk.CTkLabel(row1, text="Período Ref:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(10,2))
-        self.perRef = ctk.CTkEntry(row1, width=75, placeholder_text="AAAA-MM")
+        ctk.CTkLabel(row1, text="Período(AAAA-MM):", font=ctk.CTkFont(size=11)).pack(side="left", padx=(10,2))
+        self.perRef = ctk.CTkEntry(row1, width=75, placeholder_text="2026-02")
         self.perRef.pack(side="left", padx=2)
         
-        ctk.CTkLabel(row1, text="Tp Pgto:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(10,2))
-        self.tpPgto = ctk.CTkEntry(row1, width=40)
+        ctk.CTkLabel(row1, text="Tp Pgto:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(10,2))
+        self.tpPgto = ctk.CTkEntry(row1, width=30)
         self.tpPgto.insert(0, "1")
         self.tpPgto.pack(side="left", padx=2)
 
-        ctk.CTkLabel(row1, text="Vr Líquido:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(10,2))
-        self.vrLiq = ctk.CTkEntry(row1, width=80)
+        ctk.CTkLabel(row1, text="Vr Líquido:", font=ctk.CTkFont(size=11)).pack(side="left", padx=(10,2))
+        self.vrLiq = ctk.CTkEntry(row1, width=70)
         self.vrLiq.insert(0, "0.00")
         self.vrLiq.pack(side="left", padx=2)
         
-        ctk.CTkLabel(row1, text="IDs Dem:", font=ctk.CTkFont(size=12)).pack(side="left", padx=(10,2))
-        self.ideDmDevs = ctk.CTkEntry(row1, width=80, placeholder_text="001, 002...")
+        ctk.CTkLabel(row1, text="ideDmDev(Recibo):", font=ctk.CTkFont(size=11, weight="bold"), text_color="#E74C3C").pack(side="left", padx=(10,2))
+        self.ideDmDevs = ctk.CTkEntry(row1, width=80, placeholder_text="Ex: 001")
         self.ideDmDevs.insert(0, "001")
         self.ideDmDevs.pack(side="left", padx=2)
         
@@ -481,7 +481,8 @@ class SideListPanel(ctk.CTkFrame):
         queue = self.app.batch_queues.get(self.evt_type, [])
         for idx, item in enumerate(queue):
             # Queue items use idx as 'evt_id' for selection
-            self.tree.insert("", "end", values=(f"Linha {idx+1}", self.evt_type, item['cpfTrab'], "PENDENTE", "-", "-", "CSV Import"), tags=("queue",))
+            cpf_val = item.get('cpfTrab') or item.get('cpfBenef', '')
+            self.tree.insert("", "end", values=(f"Linha {idx+1}", self.evt_type, cpf_val, "PENDENTE", "-", "-", "CSV Import"), tags=("queue",))
 
     def view_details(self):
         if self.mode == "QUEUE": return
@@ -1080,8 +1081,11 @@ class ESocialApp(ctk.CTk):
         self.s1210_nr_rec = ctk.CTkEntry(self.s1210_retif_frame, placeholder_text="Obrigatório se Retificadora", width=250)
         self.s1210_nr_rec.pack(side="left", padx=5, fill="x", expand=True)
         
-        help_s1210 = ctk.CTkLabel(page, text="💡 Pagamentos: Informe a Data do Pagamento (Data de Caixa) e o ID do Demonstrativo correspondente do S-1200/S-1202.", font=ctk.CTkFont(size=11), text_color="gray")
-        help_s1210.pack(padx=20, pady=5, anchor="w")
+        help_s1210 = ctk.CTkLabel(page, text="💡 Pagamentos: A Data Pgto é no formato DDMMAAAA (Ex: 05032026) e Período em AAAA-MM.", font=ctk.CTkFont(size=11), text_color="gray")
+        help_s1210.pack(padx=20, pady=(5, 0), anchor="w")
+        
+        help_s1210_err = ctk.CTkLabel(page, text="⚠️ ERRO 724: O campo 'ideDmDev (Recibo)' DEVE SER EXATAMENTE IGUAL ao enviado no S-1200/S-1202/S-1207 (Ex: 001).", font=ctk.CTkFont(size=12, weight="bold"), text_color="#E74C3C")
+        help_s1210_err.pack(padx=20, pady=(2, 5), anchor="w")
 
         self.s1210_entries = {}
         
@@ -1492,7 +1496,7 @@ class ESocialApp(ctk.CTk):
                 elif evt_type == "S-1207":
                     sample.extend(["001", "1000", "1500.00", "contindi"])
                 elif evt_type == "S-1210":
-                    sample.extend(["2026-02-28", "2", "2026-02", "2350.00", "001", "056107", "150.00", "", "0.00"])
+                    sample.extend(["28022026", "1", "2026-02", "2350.00", "001", "056107", "150.00", "", "0.00"])
                 
                 writer.writerow(sample)
                 
@@ -1766,7 +1770,7 @@ class ESocialApp(ctk.CTk):
                             groups[key] = {'data': data, 'demonstrativos': {}}
                         
                         # Add Rubric
-                        ide_dm = get_val(row, "ideDmDev") or "001"
+                        ide_dm = str(get_val(row, "ideDmDev") or "001").strip()
                         if ide_dm not in groups[key]['demonstrativos']:
                             groups[key]['demonstrativos'][ide_dm] = []
                         
@@ -1850,10 +1854,13 @@ class ESocialApp(ctk.CTk):
                     reader = csv.DictReader(f, delimiter=delimiter)
                     for raw_row in reader:
                         if not raw_row: continue
-                        row = {str(k).lower().strip(): str(v).strip() for k, v in raw_row.items() if k}
+                        row = {str(k).replace('\ufeff', '').lower().strip(): str(v).strip() for k, v in raw_row.items() if k}
                         
-                        cpf = re.sub(r'\D', '', str(get_val_1210(row, "cpfTrab") or get_val_1210(row, "cpfBenef") or ""))
-                        period = str(get_val_1210(row, "perApur") or "").strip()
+                        def get_val(k):
+                            return str(row.get(k.lower(), "")).strip()
+
+                        cpf = re.sub(r'\D', '', get_val("cpfTrab") or get_val("cpfBenef"))
+                        period = get_val("perApur")
                         if not cpf or not period: continue
                         
                         key = (cpf, period)
@@ -1863,7 +1870,7 @@ class ESocialApp(ctk.CTk):
                                     'tpAmb': self.config_data.get("tpAmb", "1"),
                                     'nrInsc': self.config_data.get("nrInsc", ""),
                                     'tpInsc': self.config_data.get("tpInsc", "1"),
-                                    'cpfBenef': cpf,
+                                    'cpfTrab': cpf,
                                     'perApur': period,
                                     'indRetif': '1',
                                     'nrRecEvt': ''
@@ -1872,22 +1879,29 @@ class ESocialApp(ctk.CTk):
                             }
                         
                         # Process payment line
-                        dt_pgto = str(get_val_1210(row, "dtPgto") or "").strip()
+                        dt_raw = get_val("dtPgto")
+                        dt_pgto = ""
+                        if dt_raw:
+                            clean_dt = re.sub(r'\D', '', dt_raw)
+                            if len(clean_dt) == 8:
+                                dt_pgto = f"{clean_dt[4:]}-{clean_dt[2:4]}-{clean_dt[:2]}"
+                            else: dt_pgto = dt_raw
                         if not dt_pgto: continue
                         
-                        dems_val = get_val_1210(row, "ideDmDevs") or "001"
+                        dems_val = get_val("ideDmDevs") or "001"
                         dems = [d.strip() for d in str(dems_val).split(",") if d.strip()]
                         
                         pgto = {
                             'dtPgto': dt_pgto,
-                            'tpPgto': get_val_1210(row, "tpPgto") or "2",
-                            'perRef': get_val_1210(row, "perRef") or period,
-                            'vrLiq': str(get_val_1210(row, "vrLiq") or "0.00").replace(",", "."),
+                            'tpPgto': get_val("tpPgto") or "1",
+                            'perRef': get_val("perRef") or period,
+                            'ideDmDevs': dems,
                             'demonstrativos': [{'ideDmDev': dem} for dem in dems],
-                            'cr': get_val_1210(row, "tpCR") or "",
-                            'vrIRRF': str(get_val_1210(row, "vrIRRF") or "0.00").replace(",", "."),
-                            'cpfDep': get_val_1210(row, "cpfDep") or "",
-                            'vlrDedDep': str(get_val_1210(row, "vlrDedDep") or "0.00").replace(",", ".")
+                            'vrLiq': float(str(get_val("vrLiq") or "0").replace(",", ".")) if get_val("vrLiq") else 0.0,
+                            'cr': get_val("cr") or get_val("tpCR") or "",
+                            'vrIRRF': str(get_val("vrIRRF") or "0.00").replace(",", "."),
+                            'cpfDep': get_val("cpfDep") or "",
+                            'vlrDedDep': str(get_val("vlrDedDep") or "0.00").replace(",", ".")
                         }
                         groups[key]['pagamentos'].append(pgto)
 
@@ -1943,9 +1957,10 @@ class ESocialApp(ctk.CTk):
         root_el = etree.fromstring(xml_content.encode('utf-8'))
         evt_id = root_el[0].get('Id') or root_el.xpath('//@Id')[0]
 
-        self.db.save_event(None, evt_id, evt_type, data['cpfTrab'], xml_content)
-        self.save_xml_auto(xml_content, evt_type, data['cpfTrab'])
-        self.log(f"  Salvo: [{evt_type}] CPF {data['cpfTrab']} → {evt_id[:30]}...")
+        cpf_val = data.get('cpfTrab') or data.get('cpfBenef', '')
+        self.db.save_event(None, evt_id, evt_type, cpf_val, xml_content)
+        self.save_xml_auto(xml_content, evt_type, cpf_val)
+        self.log(f"  Salvo: [{evt_type}] CPF {cpf_val} → {evt_id[:30]}...")
 
     def load_xml_file(self, xml_key):
         filename = filedialog.askopenfilename(title=f"Selecione o {xml_key}", filetypes=[("XML files", "*.xml")])
